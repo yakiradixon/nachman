@@ -50,12 +50,12 @@ func formHandler(w http.ResponseWriter, r *http.Request) {
         </form>
         <h2>Catalog</h2>
         <ul>
-        {{range .}}
-            <li><p>Title: <b>{{.Title}}</b></p>
-                <p>Author: {{.Author}}</p>
-                <p>ISBN: {{.ISBN}}</p>
-                <p>Tags: {{.Tags}} </p>
-                <p>Notes: {{.Notes}}</p>
+        {{range $id, $book := .}}
+            <li><p>Title: <b>{{$book.Title}}</b></p>
+                <p>Author: {{$book.Author}}</p>
+                <p>ISBN: {{$book.ISBN}}</p>
+                <p>Tags: {{$book.Tags}} </p>
+                <p>Notes: {{$book.Notes}}</p>
             </li>
         {{end}}
         </ul>
@@ -82,30 +82,33 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
         Notes:  r.FormValue("notes"),
         Source: "manual entry",
     }
+
+
     mu.Lock()
     books := loadCatalog()
-    books = append(books, book)
+    books[book.ID] = book
     saveCatalog(books)
     mu.Unlock()
     http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func loadCatalog() []Book {
+func loadCatalog() map[int64]Book {
     if _, err := os.Stat(catalogFile); os.IsNotExist(err) {
-        return []Book{}
+        return map[int64]Book{}
     }
     data, err := ioutil.ReadFile(catalogFile)
     if err != nil {
         log.Println("Error reading catalog:", err)
-        return []Book{}
+        return map[int64]Book{}
     }
-    var books []Book
+    var books map[int64]Book
     json.Unmarshal(data, &books)
     return books
 }
 
-func saveCatalog(books []Book) {
-    data, err := json.MarshalIndent(books, "", "  ")
+func saveCatalog(books map[int64]Book) {
+    data, err := json.Marshal(books)
+    //data, err := json.MarshalIndent(books, "", "  ")
     if err != nil {
         log.Println("Error saving catalog:", err)
         return
