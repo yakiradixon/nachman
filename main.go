@@ -2,30 +2,43 @@ package main
 
 import (
     "encoding/json"
+    // "fmt"
     "html/template"
     "log"
     "net/http"
     "os"
+    "strconv"
     "sync"
     "time"
 )
 
 type Book struct {
-    ID       int64 `json:"id"`
+    ID       string `json:"id"`
     Author   string `json:"author"`
     Title    string `json:"title"`
     ISBN     string `json:"isbn"`
-    Tags     string `json:"tags"`
-    Notes    string `json:"notes"`
     Source   string `json:"source"`
+    FromImport bool
+}
+
+type ImportedBook struct {
+    ID       string `json:"books_id"`
+    Author   string `json:"primaryauthor"`
+    Title    string `json:"title"`
+    // ISBN     map[string]string `json:"isbn"`
+    ISBN     string `json:"originalisbn"`
+    Source   string `json:"source"`
+    FromImport  bool
 }
 
 var (
     catalogFile = "catalog.json"
+    importFile = "import.json"
     mu          sync.Mutex
 )
 
 func main() {
+    importBooks()
     http.HandleFunc("/", formHandler)
     http.HandleFunc("/add", addHandler)
     log.Println("Server started at http://localhost:8080")
@@ -42,9 +55,6 @@ func formHandler(w http.ResponseWriter, r *http.Request) {
             Title: <input name="title" required><br>
             Author: <input name="author"><br>
             ISBN: <input name="isbn"><br>
-            Tags: <textarea name="tags"></textarea><br>
-            <p> Separate tags with commas, like "foo, bar, baz"</p>
-            Notes: <textarea name="notes"></textarea><br>
             <input type="submit" value="Add Book">
         </form>
         <h2>Catalog</h2>
@@ -53,8 +63,7 @@ func formHandler(w http.ResponseWriter, r *http.Request) {
             <li><p>Title: <b>{{$book.Title}}</b></p>
                 <p>Author: {{$book.Author}}</p>
                 <p>ISBN: {{$book.ISBN}}</p>
-                <p>Tags: {{$book.Tags}} </p>
-                <p>Notes: {{$book.Notes}}</p>
+                <p>Source: {{$book.Source}}</p>
             </li>
         {{end}}
         </ul>
@@ -73,13 +82,12 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     book := Book{
-        ID: time.Now().UnixNano(),
+        ID: strconv.FormatInt(time.Now().UnixNano(), 10),
         Author: r.FormValue("author"),
         Title:  r.FormValue("title"),
         ISBN:   r.FormValue("isbn"),
-        Tags:  r.FormValue("tags"),
-        Notes:  r.FormValue("notes"),
         Source: "manual entry",
+        FromImport: false,
     }
 
 
@@ -91,21 +99,21 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
     http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func loadCatalog() map[int64]Book {
+func loadCatalog() map[string]Book {
     if _, err := os.Stat(catalogFile); os.IsNotExist(err) {
-        return map[int64]Book{}
+        return map[string]Book{}
     }
     data, err := os.ReadFile(catalogFile)
     if err != nil {
         log.Println("Error reading catalog:", err)
-        return map[int64]Book{}
+        return map[string]Book{}
     }
-    var books map[int64]Book
+    var books map[string]Book
     json.Unmarshal(data, &books)
     return books
 }
 
-func saveCatalog(books map[int64]Book) {
+func saveCatalog(books map[string]Book) {
     data, err := json.Marshal(books)
     //data, err := json.MarshalIndent(books, "", "  ")
     if err != nil {
@@ -113,4 +121,31 @@ func saveCatalog(books map[int64]Book) {
         return
     }
     os.WriteFile(catalogFile, data, 0644)
+}
+
+func importBooks() {
+    data, err := os.ReadFile(importFile)
+    if err != nil {
+        log.Fatalf("Error reading file for import: %v", err)
+        return
+    }
+    var ib map[string]ImportedBook
+    json.Unmarshal(data, &ib)
+
+
+    books := map[string]Book{}
+    for _, v := range ib {
+        b := Book{
+            ID: v.ID,
+            Author: v.Author,
+            Title: v.Title,
+            ISBN: v.ISBN,
+            Source: v.Source,
+            FromImport: true,
+        }
+
+        books[b.ID] = b
+
+    }
+    saveCatalog(books)
 }

@@ -30,6 +30,9 @@ go.work.sum
 # Do not commit the catalog
 catalog.json
 
+# Ignore this test file for now
+import.json
+
 # Editor/IDE
 # .idea/
 # .vscode/
