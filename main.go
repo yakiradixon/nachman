@@ -3,7 +3,6 @@ package main
 import (
     "encoding/json"
     "html/template"
-    "io/ioutil"
     "log"
     "net/http"
     "os"
@@ -96,7 +95,7 @@ func loadCatalog() map[int64]Book {
     if _, err := os.Stat(catalogFile); os.IsNotExist(err) {
         return map[int64]Book{}
     }
-    data, err := ioutil.ReadFile(catalogFile)
+    data, err := os.ReadFile(catalogFile)
     if err != nil {
         log.Println("Error reading catalog:", err)
         return map[int64]Book{}
@@ -113,5 +112,5 @@ func saveCatalog(books map[int64]Book) {
         log.Println("Error saving catalog:", err)
         return
     }
-    ioutil.WriteFile(catalogFile, data, 0644)
+    os.WriteFile(catalogFile, data, 0644)
 }
