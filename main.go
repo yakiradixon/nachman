@@ -46,32 +46,13 @@ func main() {
 }
 
 func formHandler(w http.ResponseWriter, r *http.Request) {
-    tmpl := `
-    <html>
-    <head><title>Book Catalog</title></head>
-    <body>
-        <h1>Manual Entry</h1>
-        <form action="/add" method="POST">
-            Title: <input name="title" required><br>
-            Author: <input name="author"><br>
-            ISBN: <input name="isbn"><br>
-            <input type="submit" value="Add Book">
-        </form>
-        <h2>Catalog</h2>
-        <ul>
-        {{range $id, $book := .}}
-            <li><p>Title: <b>{{$book.Title}}</b></p>
-                <p>Author: {{$book.Author}}</p>
-                <p>ISBN: {{$book.ISBN}}</p>
-                <p>Source: {{$book.Source}}</p>
-            </li>
-        {{end}}
-        </ul>
-    </body>
-    </html>
-    `
     books := loadCatalog()
-    t := template.Must(template.New("form").Parse(tmpl))
+    t, err := template.ParseFiles("templates/form.html")
+    if err != nil {
+        log.Println(err)
+        http.Error(w, "Error parsing template", 500)
+        return
+    }
     t.Execute(w, books)
 }
 
