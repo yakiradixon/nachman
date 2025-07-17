@@ -27,6 +27,8 @@ go.work.sum
 # env file
 .env
 
+.DS_Store
+
 # Do not commit the catalog
 catalog.json
 
