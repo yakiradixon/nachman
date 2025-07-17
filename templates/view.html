@@ -1,0 +1,11 @@
+<html>
+<head><title>{{ .Title}} | {{ .Author }} | Work</title></head>
+<body>
+    <p><strong>Title:</strong> {{ .Title }}</p>
+    <p><strong>Author:</strong> {{ .Author }}</p>
+    <p><strong>ISBN:</strong> {{ .ISBN }}</p>
+    <p><strong>Source:</strong> {{ .Source }}</p>
+    <p><strong>Imported:</strong> {{ .FromImport }}</p>
+    <p><a href="/work/edit/{{ .ID }}">Edit</a> | <a href="/">Back</a></p>
+</body>
+</html>

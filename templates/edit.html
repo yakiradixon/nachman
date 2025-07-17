@@ -1,0 +1,12 @@
+<html>
+<head><title>Editing: {{ .Title}} | {{ .Author }} | Work</title></head>
+<h2>Edit Work</h2>
+<form method="POST" action="/work/update/{{ .ID }}">
+    <p>Title: <input name="title" value="{{ .Title }}"></p>
+    <p>Author: <input name="author" value="{{ .Author }}"></p>
+    <p>ISBN: <input name="isbn" value="{{ .ISBN }}"></p>
+    <p><button type="submit">Update</button></p>
+</form>
+<a href="/work/{{ .ID }}">Back</a>
+</body>
+</html>

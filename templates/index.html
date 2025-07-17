@@ -17,6 +17,10 @@
             <p>ISBN: {{$book.ISBN}}</p>
             <p>Source: {{$book.Source}}</p>
         </li>
+
+        <p><a href="/work/{{ .ID }}">View</a> |
+        <a href="/work/edit/{{ .ID }}">Edit</a> |
+        <a href="/work/delete/{{ .ID }}">Delete</a></p>
     {{end}}
     </ul>
 </body>
