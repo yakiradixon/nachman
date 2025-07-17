@@ -41,13 +41,17 @@ func main() {
     importBooks()
     http.HandleFunc("/", formHandler)
     http.HandleFunc("/add", addHandler)
+    http.HandleFunc("/work/new", newWorkHandler)
+    http.HandleFunc("/work/create", createWorkHandler)
+    http.HandleFunc("/export", exportHandler)
+
     log.Println("Server started at http://localhost:8080")
     log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 func formHandler(w http.ResponseWriter, r *http.Request) {
     books := loadCatalog()
-    t, err := template.ParseFiles("templates/form.html")
+    t, err := template.ParseFiles("templates/index.html")
     if err != nil {
         log.Println(err)
         http.Error(w, "Error parsing template", 500)
@@ -79,6 +83,52 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
     mu.Unlock()
     http.Redirect(w, r, "/", http.StatusSeeOther)
 }
+
+func newWorkHandler(w http.ResponseWriter, r *http.Request) {
+    t, err := template.ParseFiles("templates/new.html")
+    if err != nil {
+        log.Println(err)
+        http.Error(w, "Template error", 500)
+        return
+    }
+    t.Execute(w, nil)
+}
+
+func createWorkHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != "POST" {
+        http.Redirect(w, r, "/", http.StatusSeeOther)
+        return
+    }
+
+    books := loadCatalog()
+
+    b := Book{
+        ID:         strconv.FormatInt(time.Now().UnixNano(), 10),
+        Author:     r.FormValue("author"),
+        Title:      r.FormValue("title"),
+        ISBN:       r.FormValue("isbn"),
+        Source:     "manual entry",
+        FromImport: false,
+    }
+
+    books[b.ID] = b
+    saveCatalog(books)
+    http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func exportHandler(w http.ResponseWriter, r *http.Request) {
+
+    w.Header().Set("Content-Type", "application/json")
+    w.Header().Set("Content-Disposition", "attachment; filename=catalog_export.json")
+
+    encoder := json.NewEncoder(w)
+    encoder.SetIndent("", "  ") // Pretty printing
+    works := loadCatalog()
+    if err := encoder.Encode(works); err != nil {
+        http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
+    }
+}
+
 
 func loadCatalog() map[string]Book {
     if _, err := os.Stat(catalogFile); os.IsNotExist(err) {

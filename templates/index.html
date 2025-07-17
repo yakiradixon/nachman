@@ -1,13 +1,14 @@
 <html>
-<head><title>Book Catalog</title></head>
+<head><title>Catalog</title></head>
 <body>
-    <h1>Manual Entry</h1>
-    <form action="/add" method="POST">
+    <a href="/work/new">Add work to catalog</a>
+    <a href="/export">Export catalog (JSON)</a>
+<!--     <form action="/add" method="POST">
         Title: <input name="title" required><br>
         Author: <input name="author"><br>
         ISBN: <input name="isbn"><br>
         <input type="submit" value="Add Book">
-    </form>
+    </form> -->
     <h2>Catalog</h2>
     <ul>
     {{range $id, $book := .}}
