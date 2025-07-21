@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -48,6 +50,7 @@ func main() {
 	http.HandleFunc("/work/update/", updateWorkHandler)
 	http.HandleFunc("/work/delete/", deleteWorkHandler)
 	http.HandleFunc("/export", exportHandler)
+	http.HandleFunc("/search", searchHandler)
 
 	log.Println("Server started at http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -181,6 +184,33 @@ func exportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func searchHandler(w http.ResponseWriter, r *http.Request) {
+	query := r.FormValue("query")
+	if query == "" {
+		http.Error(w, "Missing query", http.StatusBadRequest)
+		return
+	}
+
+	openlibUrl := "https://openlibrary.org/search.json?q=" + url.QueryEscape(query)
+
+	resp, err := http.Get(openlibUrl)
+	if err != nil {
+		http.Error(w, "Error requesting Book Search API", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "OpenLibrary Book Search API returned error", http.StatusBadGateway)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	io.Copy(w, resp.Body)
+}
+
+
 func loadCatalog() map[string]Work {
 	if _, err := os.Stat(catalogFile); os.IsNotExist(err) {
 		return map[string]Work{}
@@ -197,7 +227,6 @@ func loadCatalog() map[string]Work {
 
 func saveCatalog(works map[string]Work) {
 	data, err := json.Marshal(works)
-	//data, err := json.MarshalIndent(works, "", "  ")
 	if err != nil {
 		log.Println("Error saving catalog:", err)
 		return

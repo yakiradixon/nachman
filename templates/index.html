@@ -3,12 +3,11 @@
 <body>
     <a href="/work/new">Add work to catalog</a>
     <a href="/export">Export catalog (JSON)</a>
-<!--     <form action="/add" method="POST">
-        Title: <input name="title" required><br>
-        Author: <input name="author"><br>
-        ISBN: <input name="isbn"><br>
-        <input type="submit" value="Add Book">
-    </form> -->
+    <br><br>
+    <form action="/search" method="POST">
+        <input name="query" required><br>
+        <input type="submit" value="Search">
+    </form>
     <h2>Catalog</h2>
     <ul>
     {{range $id, $book := .}}
