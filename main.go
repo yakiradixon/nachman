@@ -1,15 +1,18 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"html/template"
-	"github.com/matoous/go-nanoid/v2"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/matoous/go-nanoid/v2"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Work struct {
@@ -37,10 +40,20 @@ var (
 	importOnStart = false
 )
 
+var db *sql.DB
+
 func main() {
+	var err error
+	db, err = sql.Open("sqlite3", "./works.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	createSchema()
+
 	if importOnStart {
 		importBooks()
 	}
+
 	http.HandleFunc("/", formHandler)
 	http.HandleFunc("/work/", viewWorkHandler)
 	http.HandleFunc("/work/new", newWorkHandler)
@@ -55,8 +68,38 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
+func createSchema() {
+	schema := `
+	CREATE TABLE IF NOT EXISTS works (
+		id TEXT PRIMARY KEY,
+		author TEXT,
+		title TEXT,
+		isbn TEXT,
+		source TEXT,
+		from_import INTEGER
+	);`
+	_, err := db.Exec(schema)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func formHandler(w http.ResponseWriter, r *http.Request) {
-	works := loadCatalog()
+	rows, err := db.Query("SELECT id, author, title, isbn, source, from_import FROM works")
+	if err != nil {
+		http.Error(w, "Query failed", 500)
+		return
+	}
+	defer rows.Close()
+
+	var works []Work
+	for rows.Next() {
+		var w Work
+		var fromImport int
+		rows.Scan(&w.ID, &w.Author, &w.Title, &w.ISBN, &w.Source, &fromImport)
+		w.FromImport = fromImport == 1
+		works = append(works, w)
+	}
 	t, err := template.ParseFiles("templates/index.html")
 	if err != nil {
 		log.Println(err)
@@ -157,29 +200,35 @@ func updateWorkHandler(w http.ResponseWriter, r *http.Request) {
 
 func deleteWorkHandler(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/work/delete/")
-
-	works := loadCatalog()
-	work, ok := works[id]
-	if !ok {
-		http.NotFound(w, r)
+	_, err := db.Exec("DELETE FROM works WHERE id = ?", id)
+	if err != nil {
+		http.Error(w, "Delete failed", 500)
 		return
 	}
-	log.Println("deleting: ", work)
-
-	delete(works, id)
-
-	saveCatalog(works)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func exportHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := db.Query("SELECT id, author, title, isbn, source, from_import FROM works")
+	if err != nil {
+		http.Error(w, "Query failed", 500)
+		return
+	}
+	defer rows.Close()
+
+	var works []Work
+	for rows.Next() {
+		var w Work
+		var fromImport int
+		rows.Scan(&w.ID, &w.Author, &w.Title, &w.ISBN, &w.Source, &fromImport)
+		w.FromImport = fromImport == 1
+		works = append(works, w)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", "attachment; filename=catalog_export.json")
 
 	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ") // Pretty printing
-	works := loadCatalog()
 	if err := encoder.Encode(works); err != nil {
 		http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
 	}
@@ -210,7 +259,6 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, resp.Body)
 }
-
 
 func loadCatalog() map[string]Work {
 	if _, err := os.Stat(catalogFile); os.IsNotExist(err) {
