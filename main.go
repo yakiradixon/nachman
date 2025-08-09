@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/matoous/go-nanoid/v2"
@@ -24,21 +23,15 @@ type Work struct {
 	FromImport bool
 }
 
-type ImportedWork struct {
-	ID     string `json:"books_id"`
-	Author string `json:"primaryauthor"`
-	Title  string `json:"title"`
-	// ISBN     map[string]string `json:"isbn"`
-	ISBN       string `json:"originalisbn"`
-	Source     string `json:"source"`
-	FromImport bool
-}
-
-var (
-	catalogFile   = "catalog.json"
-	importFile    = "import.json"
-	importOnStart = false
-)
+// type ImportedWork struct {
+// 	ID     string `json:"books_id"`
+// 	Author string `json:"primaryauthor"`
+// 	Title  string `json:"title"`
+// 	// ISBN     map[string]string `json:"isbn"`
+// 	ISBN       string `json:"originalisbn"`
+// 	Source     string `json:"source"`
+// 	FromImport bool
+// }
 
 var db *sql.DB
 
@@ -48,11 +41,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	createSchema()
 
-	if importOnStart {
-		importBooks()
-	}
+	createSchema()
 
 	http.HandleFunc("/", formHandler)
 	http.HandleFunc("/work/", viewWorkHandler)
@@ -125,8 +115,6 @@ func createWorkHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	works := loadCatalog()
-
 	id, _ := gonanoid.New()
 
 	work := Work{
@@ -137,64 +125,60 @@ func createWorkHandler(w http.ResponseWriter, r *http.Request) {
 		Source:     "manual entry",
 		FromImport: false,
 	}
-
-	works[work.ID] = work
-	saveCatalog(works)
+	_, err := db.Exec("INSERT INTO works (id, author, title, isbn, source, from_import) VALUES (?, ?, ?, ?, ?, ?)",
+		work.ID, work.Author, work.Title, work.ISBN, work.Source, work.FromImport)
+	if err != nil {
+		http.Error(w, "Failed to create book", 500)
+		return
+	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
-
 }
 
 func viewWorkHandler(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/work/")
-	works := loadCatalog()
+	work := getWorkByID(id)
 	t, err := template.ParseFiles("templates/view.html")
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Error parsing template", 500)
 		return
 	}
-	if err := t.Execute(w, works[id]); err != nil {
+	if err := t.Execute(w, work); err != nil {
 		log.Println("Template execute error:", err)
 	}
 }
 
 func editWorkHandler(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/work/edit/")
-	works := loadCatalog()
+	work := getWorkByID(id)
 	t, err := template.ParseFiles("templates/edit.html")
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Error parsing template", 500)
 		return
 	}
-	if err := t.Execute(w, works[id]); err != nil {
+	if err := t.Execute(w, work); err != nil {
 		log.Println("Template execute error:", err)
 	}
 }
 
 func updateWorkHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
 	id := strings.TrimPrefix(r.URL.Path, "/work/update/")
 
-	works := loadCatalog()
-	work, ok := works[id]
-	if !ok {
-		http.NotFound(w, r)
+	work := Work{
+		Author: r.FormValue("author"),
+		Title:  r.FormValue("title"),
+		ISBN:   r.FormValue("isbn"),
+		// not updating source
+		// not updating from_import
+	}
+
+	_, err := db.Exec("UPDATE works SET author=?, title=?, isbn=? WHERE id=?",
+		work.Author, work.Title, work.ISBN, id)
+	if err != nil {
+		http.Error(w, "Update failed", 500)
 		return
 	}
-	log.Println("updating: ", work)
-
-	work = works[id]
-
-	work.Author = r.FormValue("author")
-	work.Title = r.FormValue("title")
-	work.ISBN = r.FormValue("isbn")
-
-	works[id] = work
-	saveCatalog(works)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -260,51 +244,14 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, resp.Body)
 }
 
-func loadCatalog() map[string]Work {
-	if _, err := os.Stat(catalogFile); os.IsNotExist(err) {
-		return map[string]Work{}
-	}
-	data, err := os.ReadFile(catalogFile)
+func getWorkByID(id string) Work {
+	var w Work
+	var fromImport int
+	err := db.QueryRow("SELECT id, author, title, isbn, source, from_import FROM works WHERE id = ?", id).
+		Scan(&w.ID, &w.Author, &w.Title, &w.ISBN, &w.Source, &fromImport)
 	if err != nil {
-		log.Println("Error reading catalog:", err)
-		return map[string]Work{}
+		return w
 	}
-	var works map[string]Work
-	json.Unmarshal(data, &works)
-	return works
-}
-
-func saveCatalog(works map[string]Work) {
-	data, err := json.Marshal(works)
-	if err != nil {
-		log.Println("Error saving catalog:", err)
-		return
-	}
-	os.WriteFile(catalogFile, data, 0644)
-}
-
-func importBooks() {
-	data, err := os.ReadFile(importFile)
-	if err != nil {
-		log.Fatalf("Error reading file for import: %v", err)
-		return
-	}
-	var ib map[string]ImportedWork
-	json.Unmarshal(data, &ib)
-
-	works := map[string]Work{}
-	for _, v := range ib {
-		b := Work{
-			ID:         v.ID,
-			Author:     v.Author,
-			Title:      v.Title,
-			ISBN:       v.ISBN,
-			Source:     v.Source,
-			FromImport: true,
-		}
-
-		works[b.ID] = b
-
-	}
-	saveCatalog(works)
+	w.FromImport = fromImport == 1
+	return w
 }
