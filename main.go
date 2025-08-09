@@ -3,14 +3,13 @@ package main
 import (
 	"encoding/json"
 	"html/template"
+	"github.com/matoous/go-nanoid/v2"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 )
 
 type Work struct {
@@ -85,8 +84,10 @@ func createWorkHandler(w http.ResponseWriter, r *http.Request) {
 
 	works := loadCatalog()
 
+	id, _ := gonanoid.New()
+
 	work := Work{
-		ID:         strconv.FormatInt(time.Now().UnixNano(), 10),
+		ID:         id,
 		Author:     r.FormValue("author"),
 		Title:      r.FormValue("title"),
 		ISBN:       r.FormValue("isbn"),
