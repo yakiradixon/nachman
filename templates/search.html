@@ -1,0 +1,18 @@
+<html>
+<head><title>Search Results</title></head>
+<body>
+    <br><br>
+    <h2>Search Results</h2>
+    <ul>
+    {{range $id, $works := .}}
+    <li><p>ID:{{.ID}}</p>
+        <li><p>Title: <b>{{$works.Title}}</b></p>
+        <li><p>Authors: {{$works.Author}}</p>
+            <p>Source: {{$works.Source}}</p>
+            <p>FromImport: {{$works.FromImport}}</p>
+        </li>
+
+    {{end}}
+    </ul>
+</body>
+</html>

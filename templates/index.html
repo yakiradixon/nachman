@@ -10,11 +10,11 @@
     </form>
     <h2>Catalog</h2>
     <ul>
-    {{range $id, $book := .}}
-        <li><p>Title: <b>{{$book.Title}}</b></p>
-            <p>Author: {{$book.Author}}</p>
-            <p>ISBN: {{$book.ISBN}}</p>
-            <p>Source: {{$book.Source}}</p>
+    {{range $id, $work := .}}
+        <li><p>Title: <b>{{$work.Title}}</b></p>
+            <p>Author: {{$work.Author}}</p>
+            <p>ISBN: {{$work.ISBN}}</p>
+            <p>Source: {{$work.Source}}</p>
         </li>
 
         <p><a href="/work/{{ .ID }}">View</a> |

@@ -23,6 +23,18 @@ type Work struct {
 	FromImport bool
 }
 
+type OLSearchResults struct {
+	Docs []OLWork `json:"docs"`
+}
+
+type OLWork struct {
+	Key          string   `json:"key"`
+	Title        string   `json:"title"`
+	Authors      []string `json:"author_name"`
+	Year         int      `json:"first_publish_year"`
+	EditionCount int      `json:"edition_count"`
+}
+
 // type ImportedWork struct {
 // 	ID     string `json:"books_id"`
 // 	Author string `json:"primaryauthor"`
@@ -115,7 +127,7 @@ func createWorkHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, _ := gonanoid.New()
+	id, _ := gonanoid.New(10)
 
 	work := Work{
 		ID:         id,
@@ -225,7 +237,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	openlibUrl := "https://openlibrary.org/search.json?q=" + url.QueryEscape(query)
+	openlibUrl := "https://openlibrary.org/search.json?q=" + url.QueryEscape(query) + "&limit=5"
 
 	resp, err := http.Get(openlibUrl)
 	if err != nil {
@@ -239,9 +251,48 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	io.Copy(w, resp.Body)
+	body, _ := io.ReadAll(resp.Body)
+	var results OLSearchResults
+
+	if err := json.Unmarshal(body, &results); err != nil {
+		http.Error(w, "Failed to unmarshal JSON for OL search results", http.StatusInternalServerError)
+	}
+
+	// var olworks []OLWork
+	// for _, doc := range results.Docs {
+	//     olworks = append(olworks, OLWork{
+	//         Title:      doc.Title,
+	//         Authors:    doc.Authors,
+	//         Year:		doc.Year,
+	//         EditionCount: doc.EditionCount,
+	//     })
+	// }
+
+	var works []Work
+	for _, doc := range results.Docs {
+		id, _ := gonanoid.New(10)
+		works = append(works, Work{
+			ID:         id,
+			Title:      doc.Title,
+			Author:     strings.Join(doc.Authors, ", "),
+			Source:     "OpenLibrary Book Search API",
+			FromImport: false,
+			//Year:		doc.Year,
+			//EditionCount: doc.EditionCount,
+		})
+	}
+
+	// w.Header().Set("Content-Type", "application/json")
+	// w.WriteHeader(http.StatusOK)
+	//io.Copy(w, resp.Body)
+
+	t, err := template.ParseFiles("templates/search.html")
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Error parsing template", 500)
+		return
+	}
+	t.Execute(w, works)
 }
 
 func getWorkByID(id string) Work {
